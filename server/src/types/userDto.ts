@@ -4,4 +4,5 @@ export interface UserDto {
   lastname: string;
   email: string;
   username: string;
+  avatar: string | null;
 }

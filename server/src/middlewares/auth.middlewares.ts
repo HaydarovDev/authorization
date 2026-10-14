@@ -1,7 +1,9 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import type { AccessTokenPayload } from "../types/accessTokenPayload.js";
-import "dotenv/config";
+
+interface AccessTokenPayload extends jwt.JwtPayload {
+  userId: string;
+}
 
 export const authMiddleware = (
   req: Request,
@@ -9,32 +11,47 @@ export const authMiddleware = (
   next: NextFunction,
 ) => {
   try {
-    const accessToken = req.cookies.accessToken;
+    const authorization = req.headers.authorization;
 
-    if (!accessToken) {
+    const bearerToken = authorization?.startsWith("Bearer ")
+      ? authorization.slice(7).trim()
+      : undefined;
+
+    // Cookie birinchi o'rinda, Swagger Bearer token esa fallback.
+    const token = req.cookies?.accessToken || bearerToken;
+
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: "Authentication required",
       });
     }
 
-    const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
+    const secret = process.env.ACCESS_TOKEN_SECRET;
 
-    if (!accessTokenSecret) {
+    if (!secret) {
+      console.error("ACCESS_TOKEN_SECRET is not configured");
+
       return res.status(500).json({
         success: false,
-        message: "Access token secret is not configured",
+        message: "Server configuration error",
       });
     }
 
-    const decoded = jwt.verify(
-      accessToken,
-      accessTokenSecret,
-    ) as AccessTokenPayload;
+    const decoded = jwt.verify(token, secret);
 
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
+    if (typeof decoded === "string" || typeof decoded.userId !== "string") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid access token",
+      });
+    }
+
+    const payload = decoded as AccessTokenPayload;
+    req.userId = payload.userId;
+
+    return next();
+  } catch {
     return res.status(401).json({
       success: false,
       message: "Invalid or expired access token",

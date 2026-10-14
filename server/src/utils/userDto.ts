@@ -10,5 +10,6 @@ export const toUserDto = (
     lastname: user.lastname,
     email: user.email,
     username: user.username,
+    avatar: user.avatar ?? null,
   };
 };
